@@ -1,0 +1,8 @@
+Whistle is a web server built on top of Toot
+(https://github.com/gigamonkey/toot).
+
+Toot provides the low-level HTTP plumbing and hands off each request
+to a handler. Whistle is one such handler that can be configured via
+config files (not code) to automatically redirect certain urls
+elsewhere; to require basic-authentication for certain urls; and to
+handle urls matching specific patterns with specific functions.
