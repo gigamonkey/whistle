@@ -8,6 +8,14 @@
 
 (defvar *whistle-server* nil)
 
+(defun test-server ()
+  (setf *whistle-server* (server-setup "./www/"))
+  (start-acceptors *whistle-server*))
+
+(defun reread-config (&optional (server *whistle-server*))
+  (read-configuration-files server))
+
+
 (defclass server ()
   ((root-directory :initarg :root-directory :accessor root-directory)
    (passwords      :initarg :passwords :initform () :accessor passwords)
@@ -16,7 +24,7 @@
    (protections    :initarg :protections :initform () :accessor protections)
    (redirects      :initarg :redirects :initform () :accessor redirects)
    (urls           :initarg :urls :initform () :accessor urls)
--   (accept-log     :initarg :accept-log :initform "accept.log" :accessor accept-log)
+   (accept-log     :initarg :accept-log :initform "accept.log" :accessor accept-log)
    (message-log    :initarg :message-log :initform "messages.log" :accessor message-log)
    (ports          :initarg :ports :initform () :accessor ports)
    (acceptors      :initarg :acceptors :initform () :accessor acceptors)))
@@ -27,7 +35,6 @@
     (unless (safe-filename-p script-name)
       (abort-request-handler request +http-forbidden+))
     (let ((resolved (resolve-file script-name)))
-      (break "here ~a ~a" resolved toot::*catch-errors-p*)
       (serve-file request resolved))))
 
 (defun resolve-file (script-name)
@@ -43,13 +50,12 @@
   (let ((*default-pathname-defaults* (merge-pathnames "content/" (root-directory server))))
     (with-redirects (request server)
       (with-authorization (request server)
-        (maybe-handle
-            (loop with script-name = (script-name request)
-               for (pattern . fn) in (urls server)
-               do (multiple-value-bind (match parts) (scan-to-strings pattern script-name)
-                    (when (and match (handled-p (apply fn request (coerce parts 'list))))
-                      (return)))))))))
-  
+        (loop with script-name = (script-name request)
+           for (pattern . fn) in (urls server)
+           thereis (multiple-value-bind (match parts) (scan-to-strings pattern script-name)
+                     (and match (handled-p (apply fn request (coerce parts 'list)))))
+           finally (return 'not-handled))))))
+
 (defun server-dir (server relative)
   (merge-pathnames relative (root-directory server)))
 
