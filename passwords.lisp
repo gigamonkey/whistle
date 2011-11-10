@@ -14,7 +14,7 @@
       (loop for (user password . rest) in source do
            (print (list* user (bcrypt:hash password cost) rest) out)))))
 
-(defmacro with-authorization ((request server &key (realm "Code Quarterly")) &body body)
+(defmacro with-authorization ((request server &key (realm "Whistle")) &body body)
   "Execute body if the request has appropriate authorization.
   Otherwise REQUIRE-AUTHORIZATION with REALM."
   (once-only (request server)

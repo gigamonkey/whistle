@@ -1,0 +1,2 @@
+("^/foo/" :foogroup)
+("/bar/" :bargroup)
