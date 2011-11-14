@@ -5,14 +5,19 @@
   bcrypt'ed hashes for a source containing user names and plaintext
   passwords."))
 
+(defmethod write-passwords-file (file (source string) &key cost)
+  (write-passwords-file file (pathname source) :cost cost))
+
 (defmethod write-passwords-file (file (source pathname) &key cost)
   (write-passwords-file file (file->list source) :cost cost))
 
 (defmethod write-passwords-file (file (source cons) &key cost)
   (with-output-to-file (out file)
     (with-data-io-syntax
-      (loop for (user password . rest) in source do
-           (print (list* user (bcrypt:hash password cost) rest) out)))))
+      (print `(:passwords
+               ,@(loop for (user password . rest) in source collect
+                      (list* user (bcrypt:hash password cost) rest)))
+             out))))
 
 (defmacro with-authorization ((request server &key (realm "Whistle")) &body body)
   "Execute body if the request has appropriate authorization.

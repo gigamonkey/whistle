@@ -6,18 +6,23 @@
 
 ;;; Code to read the Whistle configuration file.
 
+(defvar *current-file* nil)
+
 (defun configure (server)
-  (with-open-file (in (config-file server))
+  (read-config-file server (config-file server) (find-package :keyword)))
+
+(defun read-config-file (server file package)
+  (with-open-file (in file)
     (with-standard-io-syntax
-      (let ((*package* (find-package :keyword)))
+      (let ((*package* package)
+            (*current-file* in))
         (loop for clause = (read in nil nil)
            while clause
            do (destructuring-bind (what . data) clause
-                (parse-clause server what data))))))
-  server)
+                (parse-clause server what data)))))))
 
-
-(defgeneric parse-clause (server what data))
+(defgeneric parse-clause (server what data)
+  (:documentation "Parse one top-level clause of the config file."))
 
 (defmethod parse-clause (server what data)
   (format *error-output* "~&Don't know how to parse ~s => ~s" what data))
@@ -50,5 +55,15 @@
 
 (defmethod parse-clause (server (what (eql :redirects)) redirects)
   (setf (redirects server) redirects))
+
+;;; Config-file control
+
+(defmethod parse-clause (server (what (eql :in-package )) data)
+  (destructuring-bind (package) data
+    (setf *package* (find-package package))))
+
+(defmethod parse-clause (server (what (eql :include)) data)
+  (destructuring-bind (file) data
+    (read-config-file server (merge-pathnames file *current-file*) *package*)))
 
 (defun flatten (list) (mapcan #'copy-list list))
