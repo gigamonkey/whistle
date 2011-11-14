@@ -8,22 +8,20 @@
 
 (defvar *whistle-server* nil)
 
-(defun test-server ()
-  (setf *whistle-server* (server-setup "./www/"))
+(defun test-server (&optional (config "./www/config.sexp"))
+  (setf *whistle-server* (server-setup config))
   (start-acceptors *whistle-server*))
 
-(defun reread-config (&optional (server *whistle-server*))
-  (read-configuration-files server))
-
 (defclass server ()
-  ((root-directory :initarg :root-directory :accessor root-directory)
+  ((config-file    :initarg :config-file :accessor config-file)
+   (root-directory :initarg :root-directory :accessor root-directory)
    (passwords      :initarg :passwords :initform () :accessor passwords)
    (realm          :initarg :realm :initform "Whistle" :accessor realm)
    (groups         :initarg :groups :initform () :accessor groups)
    (protections    :initarg :protections :initform () :accessor protections)
    (redirects      :initarg :redirects :initform () :accessor redirects)
    (urls           :initarg :urls :initform () :accessor urls)
-   (log-directory  :initarg :log-directory :initform "logs/" :accessor log-directory)
+   (log-directory  :initarg :log-directory :accessor log-directory)
    (access-log     :initarg :access-log :accessor access-log)
    (message-log    :initarg :message-log :accessor message-log)
    (ports          :initarg :ports :initform () :accessor ports)
@@ -34,10 +32,7 @@
   (let ((path (uri-path (request-uri request))))
     (unless (safe-filename-p path)
       (abort-request-handler request +http-forbidden+))
-    (serve-file request (resolve-file path))))
-
-(defun resolve-file (path)
-  (merge-pathnames (subseq (add-index path) 1)))
+    (serve-file request (merge-pathnames (subseq (add-index path) 1)))))
 
 (defun add-index (filename &key (extension "html"))
   (format nil "~a~@[index~*~@[.~a~]~]" filename (ends-with #\/ filename) extension))
@@ -50,7 +45,7 @@
     (with-authorization (request server)
       (let ((*default-pathname-defaults* (merge-pathnames "content/" (root-directory server))))
         (loop with path = (uri-path (request-uri request))
-           for (pattern . fn) in (urls server)
+           for (pattern fn) in (urls server)
            thereis (multiple-value-bind (match parts)
                        (scan-to-strings pattern path)
                      (and match (handled-p (apply fn request (coerce parts 'list)))))
@@ -62,38 +57,22 @@
 (defun content-file (server file)
   (merge-pathnames file (server-dir server "content/")))
 
-(defun config-file (server file)
-  (merge-pathnames file (server-dir server "config/")))
-
 (defun log-file (server file)
   (merge-pathnames file (server-dir server (log-directory server))))
 
 
-(defun make-server (dir)
-  (let ((actual-dir (file-exists-p (pathname-as-directory dir))))
-    (cond
-      (actual-dir (make-instance 'server :root-directory actual-dir))
-      (t (error "~a does not exist." dir)))))
 
-(defun server-setup (dir)
-  (let ((server (make-server dir)))
-    (read-configuration-files server)
+(defun server-setup (config-file)
+  (let ((server (make-instance 'server :config-file config-file)))
+    (configure server)
     (open-logs server)
     server))
-
-(defun read-configuration-files (server)
-  (let ((*package* #.*package*))
-    (load-ports "ports.sexp" server)
-    (load-redirects "redirects.sexp" server)
-    (load-passwords "passwords.sexp" server)
-    (load-protections "protections.sexp" server)
-    (load-urls "urls.sexp" server)))
 
 (defun open-logs (server)
   (with-slots (log-directory access-log message-log) server
     (flet ((make-logger (file)
              (make-instance 'stream-logger :destination (open-log-file server file))))
-      (setf access-log (make-logger "accept.log"))
+      (setf access-log (make-logger "access.log"))
       (setf message-log (make-logger "messages.log")))))
 
 (defun open-log-file (server file)
@@ -115,24 +94,3 @@
       :access-logger access-log
       :message-logger message-log)))
 
-(defun load-ports (file server)
-  (setf (ports server) (file->list (config-file server file))))
-
-(defun load-redirects (file server)
-  (setf (redirects server) (file->list (config-file server file))))
-
-(defun load-passwords (file server)
-  (let ((passwords (file->list (config-file server file))))
-    (setf (passwords server) (mapcar (lambda (x) (cons (first x) (second x))) passwords))
-    (setf (groups server)
-          (let ((groups-map (make-hash-table)))
-            (loop for (user password . groups) in passwords do
-                 (loop for group in groups do
-                      (push user (gethash group groups-map nil))))
-            groups-map))))
-
-(defun load-protections (file server)
-  (setf (protections server) (file->list (config-file server file))))
-
-(defun load-urls (file server)
-  (setf (urls server) (file->list (config-file server file))))
