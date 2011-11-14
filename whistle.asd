@@ -4,7 +4,7 @@
 
 (in-package :cl-user)
 
-(defpackage :whistle-asd 
+(defpackage :whistle-asd
   (:use :cl :asdf)
   (:export :*whistle-version*))
 
@@ -21,7 +21,8 @@ diagnostic output.")
                :monkeylib-bcrypt
                :com.gigamonkeys.utilities
                :com.gigamonkeys.pathnames
-               :cl-ppcre)
+               :cl-ppcre
+               :puri)
   :components ((:file "packages")
                (:file "whistle" :depends-on ("packages" "passwords" "redirects"))
                (:file "passwords" :depends-on ("packages" "utilities"))

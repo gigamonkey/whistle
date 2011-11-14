@@ -31,15 +31,14 @@
 
 
 (defun default-handler (request)
-  (let ((script-name (url-decode (script-name request))))
-    (unless (safe-filename-p script-name)
+  (let ((path (uri-path (request-uri request))))
+    (unless (safe-filename-p path)
       (abort-request-handler request +http-forbidden+))
-    (let ((resolved (resolve-file script-name)))
-      (serve-file request resolved))))
+    (serve-file request (resolve-file path))))
 
-(defun resolve-file (script-name)
-  (merge-pathnames (subseq (add-index script-name) 1)))
-  
+(defun resolve-file (path)
+  (merge-pathnames (subseq (add-index path) 1)))
+
 (defun add-index (filename &key (extension "html"))
   (format nil "~a~@[index~*~@[.~a~]~]" filename (ends-with #\/ filename) extension))
 
@@ -47,12 +46,13 @@
   (not (eql result 'not-handled)))
 
 (defmethod toot::handle-request ((server server) request)
-  (let ((*default-pathname-defaults* (merge-pathnames "content/" (root-directory server))))
-    (with-redirects (request server)
-      (with-authorization (request server)
-        (loop with script-name = (script-name request)
+  (with-redirects (request server)
+    (with-authorization (request server)
+      (let ((*default-pathname-defaults* (merge-pathnames "content/" (root-directory server))))
+        (loop with path = (uri-path (request-uri request))
            for (pattern . fn) in (urls server)
-           thereis (multiple-value-bind (match parts) (scan-to-strings pattern script-name)
+           thereis (multiple-value-bind (match parts)
+                       (scan-to-strings pattern path)
                      (and match (handled-p (apply fn request (coerce parts 'list)))))
            finally (return 'not-handled))))))
 
@@ -85,9 +85,9 @@
     (load-urls "urls.sexp" server)))
 
 (defun start-acceptors (server)
-  (loop for (protocol port) in (ports server) do 
+  (loop for (protocol port) in (ports server) do
        (push (make-instance 'toot::acceptor :port port :handler server) (acceptors server)))
-  (loop for acceptor in (acceptors server) do (start acceptor)))
+  (loop for acceptor in (acceptors server) do (start-acceptor acceptor)))
 
 (defun load-ports (file server)
   (setf (ports server) (file->list (config-file server file))))
@@ -98,7 +98,7 @@
 (defun load-passwords (file server)
   (let ((passwords (file->list (config-file server file))))
     (setf (passwords server) (mapcar (lambda (x) (cons (first x) (second x))) passwords))
-    (setf (groups server) 
+    (setf (groups server)
           (let ((groups-map (make-hash-table)))
             (loop for (user password . groups) in passwords do
                  (loop for group in groups do

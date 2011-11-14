@@ -4,11 +4,12 @@
 
 (in-package :cl-user)
 
-(defpackage :whistle 
+(defpackage :whistle
   (:use :cl
         :toot
         :com.gigamonkeys.utilities
         :com.gigamonkeys.pathnames
-        :cl-ppcre)
+        :cl-ppcre
+        :puri)
   (:import-from :alexandria :once-only :with-unique-names :ends-with))
 
