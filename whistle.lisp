@@ -15,7 +15,6 @@
 (defun reread-config (&optional (server *whistle-server*))
   (read-configuration-files server))
 
-
 (defclass server ()
   ((root-directory :initarg :root-directory :accessor root-directory)
    (passwords      :initarg :passwords :initform () :accessor passwords)
@@ -24,8 +23,9 @@
    (protections    :initarg :protections :initform () :accessor protections)
    (redirects      :initarg :redirects :initform () :accessor redirects)
    (urls           :initarg :urls :initform () :accessor urls)
-   (accept-log     :initarg :accept-log :initform "accept.log" :accessor accept-log)
-   (message-log    :initarg :message-log :initform "messages.log" :accessor message-log)
+   (log-directory  :initarg :log-directory :initform "logs/" :accessor log-directory)
+   (access-log     :initarg :access-log :accessor access-log)
+   (message-log    :initarg :message-log :accessor message-log)
    (ports          :initarg :ports :initform () :accessor ports)
    (acceptors      :initarg :acceptors :initform () :accessor acceptors)))
 
@@ -65,6 +65,10 @@
 (defun config-file (server file)
   (merge-pathnames file (server-dir server "config/")))
 
+(defun log-file (server file)
+  (merge-pathnames file (server-dir server (log-directory server))))
+
+
 (defun make-server (dir)
   (let ((actual-dir (file-exists-p (pathname-as-directory dir))))
     (cond
@@ -74,6 +78,7 @@
 (defun server-setup (dir)
   (let ((server (make-server dir)))
     (read-configuration-files server)
+    (open-logs server)
     server))
 
 (defun read-configuration-files (server)
@@ -84,10 +89,31 @@
     (load-protections "protections.sexp" server)
     (load-urls "urls.sexp" server)))
 
+(defun open-logs (server)
+  (with-slots (log-directory access-log message-log) server
+    (flet ((make-logger (file)
+             (make-instance 'stream-logger :destination (open-log-file server file))))
+      (setf access-log (make-logger "accept.log"))
+      (setf message-log (make-logger "messages.log")))))
+
+(defun open-log-file (server file)
+   (open (ensure-directories-exist (log-file server file))
+         :direction :output
+         :if-exists :append
+         :if-does-not-exist :create))
+
 (defun start-acceptors (server)
-  (loop for (protocol port) in (ports server) do
-       (push (make-instance 'toot::acceptor :port port :handler server) (acceptors server)))
-  (loop for acceptor in (acceptors server) do (start-acceptor acceptor)))
+  (with-slots (acceptors) server
+    (setf acceptors (loop for (protocol port) in (ports server) collect (make-acceptor server port)))
+    (loop for acceptor in (acceptors server) do (start-acceptor acceptor))))
+
+(defun make-acceptor (server port)
+  (with-slots (access-log message-log) server
+    (make-instance 'acceptor
+      :port port
+      :handler server
+      :access-logger access-log
+      :message-logger message-log)))
 
 (defun load-ports (file server)
   (setf (ports server) (file->list (config-file server file))))
