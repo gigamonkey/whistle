@@ -8,10 +8,6 @@
 
 (defvar *whistle-server* nil)
 
-(defun test-server (&optional (config "./www/config.sexp"))
-  (setf *whistle-server* (server-setup config))
-  (start-acceptors *whistle-server*))
-
 (defclass server ()
   ((config-file    :initarg :config-file :accessor config-file)
    (root-directory :initarg :root-directory :accessor root-directory)
@@ -27,6 +23,9 @@
    (ports          :initarg :ports :initform () :accessor ports)
    (acceptors      :initarg :acceptors :initform () :accessor acceptors)))
 
+(defun start-whistle (&optional (config "./www/config.sexp"))
+  (setf *whistle-server* (server-setup config))
+  (start-acceptors *whistle-server*))
 
 (defun default-handler (request)
   (let ((path (uri-path (request-uri request))))
@@ -34,21 +33,32 @@
       (abort-request-handler request +http-forbidden+))
     (serve-file request (merge-pathnames (subseq (add-index path) 1)))))
 
+(defun safe-filename-p (path)
+  "Verify that a path, translated to a file doesn't contain any tricky
+bits such as '..'"
+  (let ((directory (pathname-directory (subseq path 1))))
+    (or (stringp directory)
+        (null directory)
+        (and (consp directory)
+             (eql (first directory) :relative)
+             (every #'stringp (rest directory))))))
+
 (defun add-index (filename &key (extension "html"))
   (format nil "~a~@[index~*~@[.~a~]~]" filename (ends-with #\/ filename) extension))
 
 (defun handled-p (result)
   (not (eql result 'not-handled)))
 
-(defmethod toot::handle-request ((server server) request)
+(defmethod handle-request ((server server) request)
   (with-redirects (request server)
     (with-authorization (request server)
       (let ((*default-pathname-defaults* (merge-pathnames "content/" (root-directory server))))
         (loop with path = (uri-path (request-uri request))
            for (pattern fn) in (urls server)
-           thereis (multiple-value-bind (match parts)
-                       (scan-to-strings pattern path)
-                     (and match (handled-p (apply fn request (coerce parts 'list)))))
+           for result = (multiple-value-bind (match parts)
+                            (scan-to-strings pattern path)
+                          (and match (apply fn request (coerce parts 'list))))
+           when (and result (handled-p result)) return result
            finally (return 'not-handled))))))
 
 (defun server-dir (server relative)
@@ -59,8 +69,6 @@
 
 (defun log-file (server file)
   (merge-pathnames file (server-dir server (log-directory server))))
-
-
 
 (defun server-setup (config-file)
   (let ((server (make-instance 'server :config-file config-file)))
