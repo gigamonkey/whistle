@@ -35,7 +35,7 @@
   (with-redirects (request server)
     (with-authorization (request server)
       (let ((*default-pathname-defaults* (merge-pathnames "content/" (root-directory server))))
-        (loop with path = (uri-path (request-uri request))
+        (loop with path = (request-path request)
            for (pattern fn) in (urls server)
            for result = (multiple-value-bind (match parts)
                             (scan-to-strings pattern path)

@@ -13,16 +13,17 @@
   (with-unique-names (code new-uri)
     (once-only (request server)
       `(multiple-value-bind (,code ,new-uri)
-           (find-redirect (request-uri ,request) (redirects ,server))
+           (find-redirect ,request (redirects ,server))
          (cond
            (,code (redirect ,request ,new-uri :code ,code))
            (t ,@body))))))
 
-(defun find-redirect (uri table)
+(defun find-redirect (request table)
   (loop for (pattern replacement code) in table do
        (multiple-value-bind (new-uri matched-p)
-           (regex-replace pattern (uri-path uri) replacement)
+           (regex-replace pattern (request-path request) replacement)
          (when matched-p
-           (return (values
-                    code
-                    (princ-to-string (puri:merge-uris (puri:parse-uri new-uri) uri))))))))
+           (return
+             (values
+              code
+              (princ-to-string (puri:merge-uris (puri:parse-uri new-uri) (request-uri request)))))))))
