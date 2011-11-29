@@ -1,6 +1,5 @@
-;;; Copyright (c) 2011, Peter Seibel.  All rights reserved.
-;;;
-;;; See LICENSE.txt for licensing information.
+;;; Copyright (c) 2011, Peter Seibel.
+;;; All rights reserved. See COPYING for details.
 
 (in-package :whistle)
 
@@ -32,7 +31,10 @@
 
 (defmethod parse-clause (server (what (eql :root-directory)) data)
   (destructuring-bind (dir) data
-    (setf (root-directory server) (file-exists-p (pathname-as-directory dir)))))
+    (with-slots (static-handler root-directory) server
+      (setf root-directory (file-exists-p (pathname-as-directory dir)))
+      (let ((content-root (merge-pathnames "content/" root-directory)))
+        (setf static-handler (make-instance 'static-file-handler :root content-root))))))
 
 (defmethod parse-clause (server (what (eql :log-directory)) data)
   (destructuring-bind (dir) data

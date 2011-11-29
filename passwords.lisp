@@ -1,3 +1,6 @@
+;;; Copyright (c) 2011, Peter Seibel.
+;;; All rights reserved. See COPYING for details.
+
 (in-package :whistle)
 
 (defgeneric write-passwords-file (output source &key cost)

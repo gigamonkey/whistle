@@ -1,6 +1,5 @@
-;;; Copyright (c) 2011, Peter Seibel.  All rights reserved.
-;;;
-;;; See LICENSE.txt for licensing information.
+;;; Copyright (c) 2011, Peter Seibel.
+;;; All rights reserved. See COPYING for details.
 
 (in-package :cl-user)
 
@@ -17,4 +16,3 @@
   ;; a number of symbols from :whistle
   (:export
    :default-handler))
-

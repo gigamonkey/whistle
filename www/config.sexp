@@ -25,4 +25,4 @@
 
 (:in-package :whistle)
 
-(:urls (".*" default-handler))
+(:urls (".*" static))

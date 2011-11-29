@@ -1,6 +1,5 @@
-;;; Copyright (c) 2011, Peter Seibel.  All rights reserved.
-;;;
-;;; See LICENSE.txt for licensing information.
+;;; Copyright (c) 2011, Peter Seibel.
+;;; All rights reserved. See COPYING for details.
 
 (in-package :whistle)
 
@@ -21,30 +20,13 @@
    (access-log     :initarg :access-log :accessor access-log)
    (message-log    :initarg :message-log :accessor message-log)
    (ports          :initarg :ports :initform () :accessor ports)
-   (acceptors      :initarg :acceptors :initform () :accessor acceptors)))
+   (acceptors      :initarg :acceptors :initform () :accessor acceptors)
+
+   (static-handler :accessor static-handler)))
 
 (defun start-whistle (&optional (config "./www/config.sexp"))
   (setf *whistle-server* (server-setup config))
   (start-acceptors *whistle-server*))
-
-(defun default-handler (request)
-  (let ((path (uri-path (request-uri request))))
-    (unless (safe-filename-p path)
-      (abort-request-handler request +http-forbidden+))
-    (serve-file request (merge-pathnames (subseq (add-index path) 1)))))
-
-(defun safe-filename-p (path)
-  "Verify that a path, translated to a file doesn't contain any tricky
-bits such as '..'"
-  (let ((directory (pathname-directory (subseq path 1))))
-    (or (stringp directory)
-        (null directory)
-        (and (consp directory)
-             (eql (first directory) :relative)
-             (every #'stringp (rest directory))))))
-
-(defun add-index (filename &key (extension "html"))
-  (format nil "~a~@[index~*~@[.~a~]~]" filename (ends-with #\/ filename) extension))
 
 (defun handled-p (result)
   (not (eql result 'not-handled)))
@@ -57,7 +39,11 @@ bits such as '..'"
            for (pattern fn) in (urls server)
            for result = (multiple-value-bind (match parts)
                             (scan-to-strings pattern path)
-                          (and match (apply fn request (coerce parts 'list))))
+                          (and match
+                               (cond
+                                 ((eql fn 'static)
+                                  (handle-request (static-handler server) request))
+                                 (t (apply fn request (coerce parts 'list))))))
            when (and result (handled-p result)) return result
            finally (return 'not-handled))))))
 
@@ -101,4 +87,3 @@ bits such as '..'"
       :handler server
       :access-logger access-log
       :message-logger message-log)))
-

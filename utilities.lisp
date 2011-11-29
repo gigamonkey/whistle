@@ -1,3 +1,6 @@
+;;; Copyright (c) 2011, Peter Seibel.
+;;; All rights reserved. See COPYING for details.
+
 (in-package :whistle)
 
 ;;; Utility code that is not particularly tied to this project.
@@ -22,12 +25,12 @@
 
 (defun string-ends-with-p (string end)
   (let ((string-length (length string))
-	(end-length (length end)))
+        (end-length (length end)))
     (and (<= end-length string-length)
-	 (string= end string :start2 (- string-length end-length)))))
+         (string= end string :start2 (- string-length end-length)))))
 
 (defmacro with-assoc ((&rest names) alist &body body)
-  (once-only (alist) 
+  (once-only (alist)
     `(let (,@(loop for name in names collect `(,name (cdr (assoc ',name ,alist)))))
        ,@body)))
 
@@ -47,16 +50,16 @@
   (once-only (s c)
     `(case ,s
        ,@(loop for clause in clauses collect
-	      (destructuring-bind (state . character-clauses) clause
-		`(,state
-		  (case ,c
-		    ,@character-clauses)))))))
+              (destructuring-bind (state . character-clauses) clause
+                `(,state
+                  (case ,c
+                    ,@character-clauses)))))))
 
 (defmacro with-data-io-syntax (&body body)
   `(with-standard-io-syntax
      (let ((*print-case* :downcase)
-	   (*read-eval* nil)
-	   (*package* (find-package :keyword)))
+           (*read-eval* nil)
+           (*package* (find-package :keyword)))
        ,@body)))
 
 (defmacro with-data-to-file ((stream file &key mode) &body body)

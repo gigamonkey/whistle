@@ -1,3 +1,6 @@
+;;; Copyright (c) 2011, Peter Seibel.
+;;; All rights reserved. See COPYING for details.
+
 (in-package :whistle)
 
 ;; A table of redirects. First item is the pattern to match against

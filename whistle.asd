@@ -1,6 +1,5 @@
-;;; Copyright (c) 2011, Peter Seibel.  All rights reserved.
-;;;
-;;; See LICENSE.txt for licensing information.
+;;; Copyright (c) 2011, Peter Seibel.
+;;; All rights reserved. See COPYING for details.
 
 (in-package :cl-user)
 
@@ -15,6 +14,7 @@
 diagnostic output.")
 
 (defsystem :whistle
+  :description "A more full-featured web server built on top of Toot."
   :version #.*whistle-version*
   :depends-on (:alexandria
                :toot
