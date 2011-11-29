@@ -8,11 +8,9 @@
         :toot
         :com.gigamonkeys.utilities
         :com.gigamonkeys.pathnames
-        :cl-ppcre
-        :puri)
+        :cl-ppcre)
   (:import-from :alexandria :once-only :with-unique-names :ends-with)
 
-  ;; FIXME: Need to re-export symbols from :toot and :puri as well as
-  ;; a number of symbols from :whistle
-  (:export
-   :default-handler))
+  ;; FIXME: Need to re-export symbols from :toot as well as a number
+  ;; of symbols from :whistle
+  (:export))

@@ -25,4 +25,4 @@
          (when matched-p
            (return (values
                     code
-                    (princ-to-string (merge-uris (parse-uri new-uri) uri))))))))
+                    (princ-to-string (puri:merge-uris (puri:parse-uri new-uri) uri))))))))
