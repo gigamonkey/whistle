@@ -27,7 +27,7 @@
   Otherwise REQUIRE-AUTHORIZATION with REALM."
   (once-only (request server)
     `(multiple-value-bind (protected users)
-         (protection (groups server) (request-uri ,request) (protections ,server))
+         (protection (groups server) (request-path ,request) (protections ,server))
        (cond
          ((and protected (not (authorizedp ,request users (passwords ,server))))
           (require-authorization ,request ,realm))
@@ -43,9 +43,9 @@
 (defun check-password (user password passwords)
   (bcrypt:password= password (cdr (assoc user passwords :test #'string=))))
 
-(defun protection (groups uri table)
+(defun protection (groups path table)
   (loop for (pattern . users-and-groups) in table
-     when (scan pattern (uri-path uri))
+     when (scan pattern path)
      return (values t (expand-groups groups (cons :wheel users-and-groups)))))
 
 (defun expand-groups (groups users-and-groups)
