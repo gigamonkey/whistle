@@ -53,6 +53,9 @@
 (defun content-file (server file)
   (merge-pathnames file (server-dir server "content/")))
 
+(defun data-file (server file)
+  (merge-pathnames file (server-dir server "data/")))
+
 (defun log-file (server file)
   (merge-pathnames file (server-dir server (log-directory server))))
 

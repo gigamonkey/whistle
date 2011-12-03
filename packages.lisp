@@ -13,4 +13,9 @@
 
   ;; FIXME: Need to re-export symbols from :toot as well as a number
   ;; of symbols from :whistle
-  (:export))
+  (:export
+   :start-whistle
+   :*whistle-server*
+   :content-file
+   :data-file
+   :server-dir))
