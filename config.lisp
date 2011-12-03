@@ -62,7 +62,10 @@
 
 (defmethod parse-clause (server (what (eql :in-package )) data)
   (destructuring-bind (package) data
-    (setf *package* (find-package package))))
+    (let ((pkg (find-package package)))
+      (unless pkg
+        (error "No package named: ~a" package))
+      (setf *package* pkg))))
 
 (defmethod parse-clause (server (what (eql :include)) data)
   (destructuring-bind (file) data
