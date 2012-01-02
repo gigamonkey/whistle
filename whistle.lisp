@@ -9,6 +9,7 @@
 
 (defclass server ()
   ((config-file    :initarg :config-file :accessor config-file)
+   (check-config   :initform t :accessor check-config)
    (root-directory :initarg :root-directory :accessor root-directory)
    (passwords      :initarg :passwords :initform () :accessor passwords)
    (realm          :initarg :realm :initform "Whistle" :accessor realm)
@@ -22,6 +23,7 @@
    (ports          :initarg :ports :initform () :accessor ports)
    (acceptors      :initarg :acceptors :initform () :accessor acceptors)
 
+   (config-last-checked :initform 0 :accessor config-last-checked)
    (static-handler :accessor static-handler)))
 
 (defun start-whistle (&optional (config "./www/config.sexp"))
@@ -31,7 +33,14 @@
 (defun handled-p (result)
   (not (eql result 'not-handled)))
 
+(defun config-file-updated (server)
+  (> (file-write-date (config-file server)) (config-last-checked server)))
+
 (defmethod handle-request ((server server) request)
+
+  (when (and (check-config server) (config-file-updated server))
+    (configure server))
+
   (with-redirects (request server)
     (with-authorization (request server)
       (let ((*default-pathname-defaults* (merge-pathnames "content/" (root-directory server))))
@@ -55,6 +64,9 @@
 
 (defun data-file (server file)
   (merge-pathnames file (server-dir server "data/")))
+
+(defun data-directory (server dir)
+  (data-file server (pathname-as-directory dir)))
 
 (defun log-file (server file)
   (merge-pathnames file (server-dir server (log-directory server))))

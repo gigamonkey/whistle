@@ -18,7 +18,8 @@
         (loop for clause = (read in nil nil)
            while clause
            do (destructuring-bind (what . data) clause
-                (parse-clause server what data)))))))
+                (parse-clause server what data))))))
+  (setf (config-last-checked server) (file-write-date file)))
 
 (defgeneric parse-clause (server what data)
   (:documentation "Parse one top-level clause of the config file."))

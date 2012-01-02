@@ -18,4 +18,5 @@
    :*whistle-server*
    :content-file
    :data-file
+   :data-directory
    :server-dir))
