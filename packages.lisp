@@ -15,8 +15,13 @@
   ;; of symbols from :whistle
   (:export
    :start-whistle
+   :stop-whistle
+   :restart-whistle
    :*whistle-server*
    :content-file
    :data-file
    :data-directory
-   :server-dir))
+   :generate-response
+   :server-dir
+   :find-handler
+   :with-parameters))

@@ -1,4 +1,4 @@
-;;; Copyright (c) 2011, Peter Seibel.
+;;; Copyright (c) 2011, 2012 Peter Seibel.
 ;;; All rights reserved. See COPYING for details.
 
 (in-package :whistle)
@@ -22,39 +22,73 @@
    (message-log    :initarg :message-log :accessor message-log)
    (ports          :initarg :ports :initform () :accessor ports)
    (acceptors      :initarg :acceptors :initform () :accessor acceptors)
+   (handlers       :initarg :handlers :initform (make-hash-table) :accessor handlers)
 
    (config-last-checked :initform 0 :accessor config-last-checked)
    (static-handler :accessor static-handler)))
 
 (defun start-whistle (&optional (config "./www/config.sexp"))
+  "Start a whistle server, configured by the given config file."
   (setf *whistle-server* (server-setup config))
   (start-acceptors *whistle-server*))
 
-(defun handled-p (result)
-  (not (eql result 'not-handled)))
+(defun stop-whistle (&optional (server *whistle-server*))
+  "Stop a whistle server, defaulting to *whistle-server*."
+  (stop-acceptors server))
+
+(defun restart-whistle (&optional (server *whistle-server*))
+  "Restart a stopped a whistle server, defaulting to *whistle-server*."
+  (start-acceptors server))
 
 (defun config-file-updated (server)
   (> (file-write-date (config-file server)) (config-last-checked server)))
 
+(defun add-handler (server name handler)
+  (when (find-handler server name)
+    (error "Duplicate handler name: ~a" name))
+  (setf (gethash name (handlers server)) handler))
+
+(defun find-handler (server name)
+  (gethash name (handlers server)))
+
+;; TODO: perhaps should provide a declarative way to automatically set
+;; cookies on certain URLs so we don't have to write a special handler
+;; just to set a cookie and then serve a static page or something.
+
 (defmethod handle-request ((server server) request)
+  "Whistle's implementation of Toot's handle-request method. After
+  checking for redirects and authorization, we loop through the url
+  patterns defined in the config file and hand the request off to the
+  handler associated with the first matching pattern by calling the
+  generate-response method."
 
   (when (and (check-config server) (config-file-updated server))
     (configure server))
 
   (with-redirects (request server)
     (with-authorization (request server)
-      (let ((*default-pathname-defaults* (merge-pathnames "content/" (root-directory server))))
-        (loop with path = (request-path request)
-           for (pattern fn) in (urls server)
-           for result = (multiple-value-bind (match parts)
-                            (scan-to-strings pattern path)
-                          (and match
-                               (cond
-                                 ((eql fn 'static)
-                                  (handle-request (static-handler server) request))
-                                 (t (apply fn request (coerce parts 'list))))))
-           when (and result (handled-p result)) return result
-           finally (return 'not-handled))))))
+      (loop with path = (request-path request)
+         for (pattern handler . args) in (urls server)
+         until (multiple-value-bind (match parts) (scan-to-strings pattern path)
+                 (when match
+                   (apply
+                    #'generate-response
+                    (find-handler server handler)
+                    request
+                    (fill-args args parts))
+                   t))))))
+
+(defun fill-args (args parts)
+  (loop for arg in args
+       for match-arg = (match-arg-p arg)
+       when match-arg collect (aref parts (1- match-arg))
+       else collect arg))
+
+(defun match-arg-p (x)
+  (and (symbolp x)
+       (char= #\$ (char (symbol-name x) 0))
+       (values (parse-integer (symbol-name x) :start 1 :junk-allowed t))))
+
 
 (defun server-dir (server relative)
   (merge-pathnames relative (root-directory server)))
@@ -77,6 +111,9 @@
     (open-logs server)
     server))
 
+(defun clear-configuration (server)
+  (setf (handlers server) (make-hash-table)))
+
 (defun open-logs (server)
   (with-slots (log-directory access-log message-log) server
     (flet ((make-logger (file)
@@ -94,6 +131,10 @@
   (with-slots (acceptors) server
     (setf acceptors (loop for (protocol port) in (ports server) collect (make-acceptor server port)))
     (loop for acceptor in (acceptors server) do (start-acceptor acceptor))))
+
+(defun stop-acceptors (server)
+  (with-slots (acceptors) server
+    (loop for acceptor in (acceptors server) do (stop-acceptor acceptor))))
 
 (defun make-acceptor (server port)
   (with-slots (access-log message-log) server
