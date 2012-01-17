@@ -9,7 +9,6 @@
   "Bridge between Whistle handler API and Toot."
   (handle-request handler request))
 
-
 ;; Our slightly more flexible static file handler
 
 (defclass whistle-static-file-handler ()
@@ -31,15 +30,11 @@
           (break "can't find file ~a with root ~a and path: ~a" file root path))
         (serve-file request file)))))
 
-(defun add-index (filename &key (name "index") (extension "html"))
-  "Add an index file name to a directory filename. Defaults to index.html"
-  (format nil "~a~:[~;~a~@[.~a~]~]" filename (ends-with #\/ filename) name extension))
-
-
 ;; A sample handler class for demonstration purposes.
 
 (defclass numeral-handler () ())
 
 (defmethod generate-response ((handler numeral-handler) request &key number)
   (setf (content-type request) "text/plain")
-  (format nil "~r" (parse-integer number)))
+  (with-response-body (out request)
+    (format out "~r" (parse-integer number))))
