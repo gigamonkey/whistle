@@ -6,68 +6,68 @@
 ;;; Code to read the Whistle configuration file.
 
 (defvar *current-file* nil)
+(defvar *server* nil)
 
 (defun configure (server)
   (clear-configuration server)
-  (read-config-file server (config-file server) (find-package :keyword)))
+  (let ((truename (truename (config-file server))))
+    (setf (root-directory server) (parent-directory truename))
+    (read-config-file server truename)
+    (setf (config-last-checked server) (file-write-date truename))))
 
-(defun read-config-file (server file package)
-  (with-open-file (in file)
-    (with-standard-io-syntax
-      (let ((*package* package)
-            (*current-file* in)
-            (*default-pathname-defaults* (make-pathname :name nil :type nil :defaults (pathname in))))
-        (setf (root-directory server) *default-pathname-defaults*)
-        (loop for clause = (read in nil nil)
-           while clause
-           do (destructuring-bind (what . data) clause
-                (parse-clause server what data))))))
-  (setf (config-last-checked server) (file-write-date file)))
+(defun read-config-file (server file)
+  (let ((*current-file* (truename file)))
+    (with-open-file (in *current-file*)
+      (with-standard-io-syntax
+        (let ((*package* (find-package :whistle-config))
+              (*default-pathname-defaults* (parent-directory *current-file*))
+              (*server* server))
+          (loop for clause = (read in nil nil)
+             while clause do (handler-case (eval clause)
+                               (error (c)
+                                 (cerror "Skip clause."
+                                         "Problem with clause ~s in ~a: ~a"
+                                         clause *current-file* c)))))))))
 
-(defgeneric parse-clause (server what data)
-  (:documentation "Parse one top-level clause of the config file."))
+(defun whistle-config:port (protocol port)
+  "Set a port for the server to listen on, serving the given protocol. E.g. (port :http 8080)"
+  (assert (eql protocol :http)) ;; for the moment this is all we support.
+  (push (list protocol port) (ports *server*)))
 
-(defmethod parse-clause (server what data)
-  (format *error-output* "~&Don't know how to parse ~s => ~s" what data))
+(defun whistle-config:logs (name)
+  "Set the directory for the server's log files. If a relative
+  pathname is specified will be resolved relative to the directory
+  containing the config file."
+  (setf (log-directory *server*) (merge-pathnames (pathname-as-directory name))))
 
-(defmethod parse-clause (server (what (eql :ports)) ports)
-  (setf (ports server) ports))
+(defun whistle-config:data (name)
+  (setf (data-directory *server*) (merge-pathnames (pathname-as-directory name))))
 
-(defmethod parse-clause (server (what (eql :log-directory)) data)
-  (destructuring-bind (dir) data
-    (setf (log-directory server) (merge-pathnames dir))))
+(defun whistle-config:include (name)
+  (read-config-file *server* (merge-pathnames name)))
 
-(defmethod parse-clause (server (what (eql :passwords)) passwords)
-  (setf (passwords server) (mapcar (lambda (x) (cons (first x) (second x))) passwords))
-  (setf (groups server)
-        (let ((groups-map (make-hash-table)))
-          (loop for (user password . groups) in passwords do
-               (loop for group in groups do
-                    (push user (gethash group groups-map nil))))
-          groups-map)))
+(defmacro whistle-config:passwords (&body passwords)
+  `(progn
+     (setf (passwords *server*) (mapcar (lambda (x) (cons (first x) (second x))) ',passwords))
+     (setf (groups *server*)
+           (let ((groups-map (make-hash-table)))
+             (loop for (user password . groups) in ',passwords do
+                  (loop for group in groups do
+                       (push user (gethash group groups-map nil))))
+             groups-map))))
 
-(defmethod parse-clause (server (what (eql :protections)) protections)
-  (setf (protections server) protections))
+(defmacro whistle-config:protections (&body clauses)
+  `(setf (protections *server*) ',clauses))
 
-(defmethod parse-clause (server (what (eql :urls)) urls)
-  (setf (urls server) urls))
+(defmacro whistle-config:urls (&body clauses)
+  `(setf (urls *server*) ',clauses))
 
-(defmethod parse-clause (server (what (eql :redirects)) redirects)
-  (setf (redirects server) redirects))
+(defmacro whistle-config:url (pattern name &rest args)
+  (push `(,pattern ,name ,@args) (urls *server*)))
 
-;;; Config-file control
+(defmacro whistle-config:redirects (&body clauses)
+  `(setf (redirects *server*) ',clauses))
 
-(defmethod parse-clause (server (what (eql :in-package )) data)
-  (destructuring-bind (package) data
-    (let ((pkg (find-package package)))
-      (unless pkg
-        (error "No package named: ~a" package))
-      (setf *package* pkg))))
-
-(defmethod parse-clause (server (what (eql :include)) data)
-  (destructuring-bind (file) data
-    (read-config-file server (merge-pathnames file) *package*)))
-
-(defmethod parse-clause (server (what (eql :handlers)) data)
-  (loop for (name class . args) in data do
-       (add-handler server name (apply #'make-instance class args))))
+(defmacro whistle-config:handlers (&body clauses)
+  `(loop for (name class . args) in ',clauses do
+        (add-handler *server* name (apply #'make-instance class args))))

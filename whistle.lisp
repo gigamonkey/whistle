@@ -3,9 +3,7 @@
 
 (in-package :whistle)
 
-(defparameter *default-port* 9876)
-
-(defvar *whistle-server* nil)
+(defvar *whistle-servers* (make-hash-table :test #'equal))
 
 (defclass server ()
   ((config-file    :initarg :config-file :accessor config-file)
@@ -18,27 +16,44 @@
    (redirects      :initarg :redirects :initform () :accessor redirects)
    (urls           :initarg :urls :initform () :accessor urls)
    (log-directory  :initarg :log-directory :accessor log-directory)
+   (data-directory :initarg :data-directory :accessor data-directory)
    (access-log     :initarg :access-log :accessor access-log)
    (message-log    :initarg :message-log :accessor message-log)
    (ports          :initarg :ports :initform () :accessor ports)
    (acceptors      :initarg :acceptors :initform () :accessor acceptors)
    (handlers       :initarg :handlers :initform (make-hash-table) :accessor handlers)
 
-   (config-last-checked :initform 0 :accessor config-last-checked)
-   (static-handler :accessor static-handler)))
+   (config-last-checked :initform 0 :accessor config-last-checked)))
 
-(defun start-whistle (&optional (config "./www/config.sexp"))
+(defun start-whistle (config)
   "Start a whistle server, configured by the given config file."
-  (setf *whistle-server* (server-setup config))
-  (start-acceptors *whistle-server*))
+  (let ((already-running (find-server config)))
+    (when already-running
+      (restart-case
+          (error "Already a server running for ~a" config)
+        (kill-it ()
+          :report "Kill it."
+          (stop-acceptors already-running))))
+    (let ((server (server-setup config)))
+      (start-acceptors server)
+      (setf (gethash (truename config) *whistle-servers*) server))))
 
-(defun stop-whistle (&optional (server *whistle-server*))
-  "Stop a whistle server, defaulting to *whistle-server*."
-  (stop-acceptors server))
+(defun stop-whistle (config)
+  "Stop the whistle server, if any, running for the given config file."
+  (when-let ((server (find-server config)))
+    (stop-acceptors server)
+    (remhash (truename config) *whistle-servers*)))
 
-(defun restart-whistle (&optional (server *whistle-server*))
-  "Restart a stopped a whistle server, defaulting to *whistle-server*."
-  (start-acceptors server))
+(defun stop-all-servers ()
+  "Stop all the known running servers and clear *whistle-servers*."
+  (loop for k being the hash-keys using (hash-value v) of *whistle-servers* do
+       (format t "~&Stopping server for ~a" k)
+       (stop-acceptors v))
+  (clrhash *whistle-servers*))
+
+(defun find-server (config)
+  "Find the running server, if any, running for the given config file."
+  (gethash (truename config) *whistle-servers*))
 
 (defun config-file-updated (server)
   (> (file-write-date (config-file server)) (config-last-checked server)))
@@ -89,21 +104,8 @@
        (char= #\$ (char (symbol-name x) 0))
        (values (parse-integer (symbol-name x) :start 1 :junk-allowed t))))
 
-
-(defun server-dir (server relative)
-  (merge-pathnames relative (root-directory server)))
-
-(defun content-file (server file)
-  (merge-pathnames file (server-dir server "content/")))
-
-(defun data-file (server file)
-  (merge-pathnames file (server-dir server "data/")))
-
-(defun data-directory (server dir)
-  (data-file server (pathname-as-directory dir)))
-
 (defun log-file (server file)
-  (merge-pathnames file (server-dir server (log-directory server))))
+  (merge-pathnames file (log-directory server)))
 
 (defun server-setup (config-file)
   (let ((server (make-instance 'server :config-file config-file)))

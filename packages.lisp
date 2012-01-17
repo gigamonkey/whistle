@@ -16,12 +16,23 @@
   (:export
    :start-whistle
    :stop-whistle
-   :restart-whistle
-   :*whistle-server*
-   :content-file
-   :data-file
-   :data-directory
+   :find-server
    :generate-response
-   :server-dir
    :find-handler
    :with-parameters))
+
+(defpackage :whistle-config
+  (:use :cl)
+
+  (:export
+   :port
+   :logs
+   :data
+   :protections
+   :redirects
+   :urls
+   :url
+   :passwords
+   :include
+   :plugin
+   :handlers))
