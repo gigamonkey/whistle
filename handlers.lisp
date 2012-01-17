@@ -26,8 +26,6 @@
       (unless (funcall path-checker path)
         (abort-request-handler +http-forbidden+))
       (let ((file (merge-pathnames (add-index path))))
-        (unless (probe-file file)
-          (break "can't find file ~a with root ~a and path: ~a" file root path))
         (serve-file request file)))))
 
 ;; A sample handler class for demonstration purposes.
