@@ -48,7 +48,7 @@
   "Stop all the known running servers and clear *whistle-servers*."
   (loop for k being the hash-keys using (hash-value v) of *whistle-servers* do
        (format t "~&Stopping server for ~a" k)
-       (stop-acceptors v))
+       (ignore-errors (stop-acceptors v)))
   (clrhash *whistle-servers*))
 
 (defun find-server (config)
@@ -58,6 +58,12 @@
 (defun config-file-updated (server)
   (> (file-write-date (config-file server)) (config-last-checked server)))
 
+
+(defun add-url (server pattern responder &rest args)
+  (push `(,pattern ,responder ,@args) (urls server)))
+
+
+
 (defun add-handler (server name handler)
   (when (find-handler server name)
     (error "Duplicate handler name: ~a" name))
@@ -65,6 +71,11 @@
 
 (defun find-handler (server name)
   (gethash name (handlers server)))
+
+(defun find-responder (server thing)
+  (etypecase thing
+    (symbol (find-handler server thing))
+    (t thing)))
 
 ;; TODO: perhaps should provide a declarative way to automatically set
 ;; cookies on certain URLs so we don't have to write a special handler
@@ -88,7 +99,7 @@
                  (when match
                    (apply
                     #'generate-response
-                    (find-handler server handler)
+                    (find-responder server handler)
                     request
                     (fill-args args parts))
                    t))))))
@@ -114,7 +125,8 @@
     server))
 
 (defun clear-configuration (server)
-  (setf (handlers server) (make-hash-table)))
+  (setf (handlers server) (make-hash-table))
+  (setf (urls server) ()))
 
 (defun open-logs (server)
   (with-slots (log-directory access-log message-log) server

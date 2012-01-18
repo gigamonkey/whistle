@@ -3,7 +3,7 @@
 
 (in-package :whistle)
 
-(defgeneric generate-response (handler request &key &allow-other-keys))
+(defgeneric generate-response (handler request &rest rest))
 
 (defmethod generate-response ((handler static-file-handler) request &key &allow-other-keys)
   "Bridge between Whistle handler API and Toot."
@@ -28,6 +28,9 @@
       (let ((file (merge-pathnames (add-index path))))
         (serve-file request file)))))
 
+(defmethod generate-response ((handler function) request &rest args)
+  (apply handler request args))
+
 ;; A sample handler class for demonstration purposes.
 
 (defclass numeral-handler () ())
@@ -36,3 +39,10 @@
   (setf (content-type request) "text/plain")
   (with-response-body (out request)
     (format out "~r" (parse-integer number))))
+
+
+(defun demo-function (request n)
+  "A function that can be used directly as a responder."
+  (setf (content-type request) "text/plain")
+  (with-response-body (out request)
+    (format out "~@r" (parse-integer n))))

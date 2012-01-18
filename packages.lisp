@@ -19,6 +19,8 @@
    :find-server
    :generate-response
    :find-handler
+   :register-plugin
+   :add-url
    :with-parameters))
 
 (defpackage :whistle-config

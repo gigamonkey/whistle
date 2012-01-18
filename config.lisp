@@ -8,11 +8,22 @@
 (defvar *current-file* nil)
 (defvar *server* nil)
 
+(defun read-dollar (stream char)
+  (declare (ignore char))
+  (let ((n (read stream t)))
+    `(quote ,(intern (format nil "$~d" n)))))
+
+(defparameter *config-readtable*
+  (let ((*readtable*  (copy-readtable nil)))
+    (set-macro-character #\$ #'read-dollar t)
+    *readtable*))
+
 (defun configure (server)
   (clear-configuration server)
   (let ((truename (truename (config-file server))))
     (setf (root-directory server) (parent-directory truename))
     (read-config-file server truename)
+    (setf (urls server) (nreverse (urls server)))
     (setf (config-last-checked server) (file-write-date truename))))
 
 (defun read-config-file (server file)
@@ -20,6 +31,7 @@
     (with-open-file (in *current-file*)
       (with-standard-io-syntax
         (let ((*package* (find-package :whistle-config))
+              (*readtable* *config-readtable*)
               (*default-pathname-defaults* (parent-directory *current-file*))
               (*server* server))
           (loop for clause = (read in nil nil)
@@ -28,6 +40,14 @@
                                  (cerror "Skip clause."
                                          "Problem with clause ~s in ~a: ~a"
                                          clause *current-file* c)))))))))
+
+(defun config-read (in)
+  (let ((*package* (find-package :whistle-config))
+        (*readtable* *config-readtable*))
+    (read in nil nil)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Operators to be used in configuration files.
 
 (defun whistle-config:port (protocol port)
   "Set a port for the server to listen on, serving the given protocol. E.g. (port :http 8080)"
@@ -60,10 +80,11 @@
   `(setf (protections *server*) ',clauses))
 
 (defmacro whistle-config:urls (&body clauses)
-  `(setf (urls *server*) ',clauses))
+  `(progn
+     ,@(loop for clause in clauses collect `(whistle-config:url ,@clause))))
 
-(defmacro whistle-config:url (pattern name &rest args)
-  (push `(,pattern ,name ,@args) (urls *server*)))
+(defun whistle-config:url (pattern name &rest args)
+  (apply #'add-url *server* pattern name args))
 
 (defmacro whistle-config:redirects (&body clauses)
   `(setf (redirects *server*) ',clauses))
@@ -71,3 +92,13 @@
 (defmacro whistle-config:handlers (&body clauses)
   `(loop for (name class . args) in ',clauses do
         (add-handler *server* name (apply #'make-instance class args))))
+
+(defmacro whistle-config::plugin (class &rest args)
+  `(register-plugin (make-instance ',class ,@args) *server*))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Plugins
+
+(defgeneric register-plugin (plugin server)
+  (:documentation "Install the plugin in the server."))

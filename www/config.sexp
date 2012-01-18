@@ -2,7 +2,7 @@
 (port :http 8080)
 
 ;; Not implemented yet but this is the idea.
-;;(port :https 8081 :certificate "foo.cert" :private-key "something")
+;; (port :https 8081 :certificate "foo.cert" :private-key "something")
 
 (logs "logs/")
 
@@ -22,6 +22,7 @@
  (default toot:static-file-handler :root "content/")
  (numbers whistle::numeral-handler))
 
-(urls
- ("^/spell-number/(\\d+)" numbers :number $1)
- (".*" default))
+(url "^/spell-number/(\\d+)" 'numbers :number $1)
+(url "^/roman/(\\d+)" #'whistle::demo-function $1)
+(url "^/foo/$" (lambda (r) (toot:with-response-body (out r) (format out "hello, world"))))
+(url ".*" 'default)
